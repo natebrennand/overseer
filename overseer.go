@@ -3,13 +3,13 @@ package main
 import (
 	"./output"
 
-	"time"
+	"bytes"
 	"os"
 	"os/exec"
-	"bytes"
 	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 )
 
 const (
@@ -20,14 +20,13 @@ var watchFiles []string
 var filePatterns []regexp.Regexp
 var commandArgs []string
 
-
 func matchFile(path string, info os.FileInfo, err error) error {
 	if err != nil || path[0] == '.' { //|| info.Name()[0] != '.'{
 		return nil
 	}
 
 	if !info.IsDir() {
-		for _, pattern := range(filePatterns) {
+		for _, pattern := range filePatterns {
 			if pattern.MatchString(path) {
 				watchFiles = append(watchFiles, path)
 				return nil
@@ -37,10 +36,10 @@ func matchFile(path string, info os.FileInfo, err error) error {
 	return nil
 }
 
-func findFiles (patterns []string) {
+func findFiles(patterns []string) {
 	filePatterns = []regexp.Regexp{}
 
-	for _, pat := range(patterns) {
+	for _, pat := range patterns {
 		if strings.Contains(pat, "**/*") {
 			// let **/* access all directories
 			strings.Replace(pat, "**/*", "*", 50)
@@ -54,7 +53,6 @@ func findFiles (patterns []string) {
 	filepath.Walk("./", matchFile)
 }
 
-
 // parse CLI args for files to watch and the command to execute
 func parseComands() {
 	if len(os.Args) < 4 {
@@ -62,7 +60,7 @@ func parseComands() {
 	}
 
 	commandIndex := -1
-	for i, w := range(os.Args) {
+	for i, w := range os.Args {
 		if w == "-c" {
 			commandIndex = i
 			break
@@ -79,7 +77,7 @@ func parseComands() {
 func initFilesModTimes() map[string]time.Time {
 	fileModTimes := make(map[string]time.Time)
 
-	for _, f := range(watchFiles) {
+	for _, f := range watchFiles {
 		fInfo, err := os.Stat(f)
 		if err != nil {
 			output.FatalError(err)
@@ -92,9 +90,9 @@ func initFilesModTimes() map[string]time.Time {
 
 // Determines if any files were modified
 // updates their lastModified time
-func filesModified (fileModTimes map[string]time.Time) bool {
+func filesModified(fileModTimes map[string]time.Time) bool {
 	returnVal := false
-	for f := range(fileModTimes) {
+	for f := range fileModTimes {
 		fInfo, err := os.Stat(f)
 		if err != nil {
 			output.FatalError(err)

@@ -1,23 +1,23 @@
 package output
 
 import (
-	"log"
-	"fmt"
 	"bytes"
+	"fmt"
+	"log"
 )
 
-func PrintError (b bytes.Buffer, err error) {
+func PrintError(b bytes.Buffer, err error) {
 	redBackground()
 	log.Printf("ERROR:\033[0m %s", err.Error())
 	fmt.Print(b.String())
 }
 
-func PrintSuccess (b bytes.Buffer) {
+func PrintSuccess(b bytes.Buffer) {
 	NoError()
 	fmt.Print(b.String())
 }
 
-func NoError () {
+func NoError() {
 	greenColor()
 	log.Printf("No error")
 	endColor()
@@ -31,7 +31,7 @@ func Usuage() {
 
 func FatalError(err error) {
 	redBackground()
-	log.Fatalf("\033[0m%s",err.Error())
+	log.Fatalf("\033[0m%s", err.Error())
 }
 
 func greenColor() {
@@ -42,6 +42,6 @@ func redBackground() {
 	fmt.Printf("\033[1;41m")
 }
 
-func endColor () {
+func endColor() {
 	fmt.Printf("\033[0m")
 }
