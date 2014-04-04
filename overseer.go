@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"log"
 	"bytes"
+	"path/filepath"
+	"regexp"
 )
 
 const (
@@ -14,27 +16,62 @@ const (
 )
 
 var watchFiles []string
+var filePatterns []regexp.Regexp
 var commandArgs []string
 
-func parseComands() {
-	commandArgs = []string{}
-	watchFiles = []string{}
 
-	onCommands := false
-	for _, w := range(os.Args) {
-		if w == "-c" {
-			onCommands = true
-			continue
-		}
+func matchFile(path string, info os.FileInfo, err error) error {
+	if err != nil || path[0] == '.' { //|| info.Name()[0] != '.'{
+		return nil
+	}
 
-		if onCommands {
-			commandArgs = append(commandArgs, w)
-		} else {
-			watchFiles = append(watchFiles, w)
+	if info.IsDir() {
+		return filepath.Walk("./"+path, matchFile)
+	} else {
+		for _, pattern := range(filePatterns) {
+			if pattern.MatchString(path) {
+				watchFiles = append(watchFiles, path)
+				return nil
+			}
 		}
 	}
+	return nil
 }
 
+func findFiles (patterns []string) {
+	filePatterns = []regexp.Regexp{}
+	for _, pat := range(patterns) {
+		filePatterns = append(filePatterns, *(regexp.MustCompile(pat)))
+	}
+	watchFiles = []string{}
+	// filepath.Walk("./", matchFile)
+	filepath.Walk("./", matchFile)
+}
+
+
+// parse CLI args for files to watch and the command to execute
+func parseComands() {
+	if len(os.Args) < 4 {
+		fmt.Println("Usuage\n\t./overseer <file> ... -c command ...")
+		log.Fatal("Incorrect usuage")
+	}
+
+	commandIndex := -1
+	for i, w := range(os.Args) {
+		if w == "-c" {
+			commandIndex = i
+			break
+		}
+	}
+	if commandIndex < 0 {
+		fmt.Println("Usuage\n\t./overseer <file> ... -c command ...")
+		log.Fatal("Incorrect usuage")
+	}
+	commandArgs = os.Args[commandIndex+1:]
+	findFiles(os.Args[1:commandIndex])
+}
+
+// Initializes the last time every file was modified
 func initFilesModTimes() map[string]time.Time {
 	fileModTimes := make(map[string]time.Time)
 
@@ -49,6 +86,8 @@ func initFilesModTimes() map[string]time.Time {
 	return fileModTimes
 }
 
+// Determines if any files were modified
+// updates their lastModified time
 func filesModified (fileModTimes map[string]time.Time) bool {
 	returnVal := false
 	for f := range(fileModTimes) {
@@ -89,6 +128,7 @@ func runCommand() {
 
 func main() {
 	parseComands()
+	fmt.Println(watchFiles)
 	fileModTimes := initFilesModTimes()
 
 	for {
