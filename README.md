@@ -13,10 +13,15 @@ go build overseer.go
 ./overseer overseer.go -c go build overseer.go
 ```
 
+To run when any .language file is edited:
 
-###TODO
+```bash
+./overseer *.language -c ...
+```
 
-- support regexes on files to watch
-  - `*.go`
-  - `**/*.go`
+To run when any .language file is edited in any directory:
+
+```bash
+./overseer **/*.language -c ...
+```
 

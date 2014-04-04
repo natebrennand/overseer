@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"path/filepath"
 	"regexp"
+	"strings"
 )
 
 const (
@@ -25,11 +26,10 @@ func matchFile(path string, info os.FileInfo, err error) error {
 		return nil
 	}
 
-	if info.IsDir() {
-		return filepath.Walk("./"+path, matchFile)
-	} else {
+	if !info.IsDir() {
 		for _, pattern := range(filePatterns) {
 			if pattern.MatchString(path) {
+				fmt.Println(path)
 				watchFiles = append(watchFiles, path)
 				return nil
 			}
@@ -40,11 +40,18 @@ func matchFile(path string, info os.FileInfo, err error) error {
 
 func findFiles (patterns []string) {
 	filePatterns = []regexp.Regexp{}
+
 	for _, pat := range(patterns) {
-		filePatterns = append(filePatterns, *(regexp.MustCompile(pat)))
+		if strings.Contains(pat, "**/*") {
+			// let **/* access all directories
+			strings.Replace(pat, "**/*", "*", 50)
+		} else if strings.Contains(pat, "*") {
+			// prevent wildcard from accessing other directories
+			strings.Replace(pat, "*", "[^/]*", 50)
+		}
+		filePatterns = append(filePatterns, *(regexp.MustCompile("^" + pat + "$")))
 	}
 	watchFiles = []string{}
-	// filepath.Walk("./", matchFile)
 	filepath.Walk("./", matchFile)
 }
 
