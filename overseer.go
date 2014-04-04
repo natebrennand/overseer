@@ -50,7 +50,7 @@ func findFiles (patterns []string) {
 			// prevent wildcard from accessing other directories
 			strings.Replace(pat, "*", "[^/]*", 50)
 		}
-		filePatterns = append(filePatterns, *(regexp.MustCompile("^" + pat + "$")))
+		filePatterns = append(filePatterns, *(regexp.MustCompile("^" + pat)))
 	}
 	watchFiles = []string{}
 	filepath.Walk("./", matchFile)

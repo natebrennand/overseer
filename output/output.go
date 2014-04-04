@@ -18,10 +18,10 @@ func PrintSuccess (b bytes.Buffer) {
 	fmt.Print(b.String())
 }
 
-
 func NoError () {
 	greenColor()
 	log.Printf("No error")
+	endColor()
 }
 
 func greenColor() {
