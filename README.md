@@ -3,6 +3,7 @@
 
 Watches your specified files and executes whatever command you specify.
 
+![](screenshot.png)
 
 ###How to use it
 
