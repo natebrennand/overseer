@@ -1,6 +1,8 @@
 package main
 
 import (
+	"./output"
+
 	"time"
 	"os"
 	"os/exec"
@@ -29,7 +31,6 @@ func matchFile(path string, info os.FileInfo, err error) error {
 	if !info.IsDir() {
 		for _, pattern := range(filePatterns) {
 			if pattern.MatchString(path) {
-				fmt.Println(path)
 				watchFiles = append(watchFiles, path)
 				return nil
 			}
@@ -112,30 +113,28 @@ func filesModified (fileModTimes map[string]time.Time) bool {
 
 // run whatever command was passed in when started
 func runCommand() {
-	var output bytes.Buffer
+	var commandOutput bytes.Buffer
 	var c *exec.Cmd
 	if len(commandArgs) > 1 {
 		c = exec.Command(commandArgs[0], commandArgs[1:]...)
 	} else {
 		c = exec.Command(commandArgs[0])
 	}
-	c.Stdout = &output
-	c.Stderr = &output
+	c.Stdout = &commandOutput
+	c.Stderr = &commandOutput
 
 	err := c.Run()
 	if err != nil {
-		fmt.Println(output.String())
-		log.Fatal(err.Error())
-	}
-
-	if output.String() != "" {
-		fmt.Println(output.String())
+		output.PrintError(commandOutput, err)
+	} else if commandOutput.String() != "" {
+		output.PrintSuccess(commandOutput)
+	} else {
+		output.NoError()
 	}
 }
 
 func main() {
 	parseComands()
-	fmt.Println(watchFiles)
 	fileModTimes := initFilesModTimes()
 
 	for {
