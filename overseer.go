@@ -6,8 +6,6 @@ import (
 	"time"
 	"os"
 	"os/exec"
-	"fmt"
-	"log"
 	"bytes"
 	"path/filepath"
 	"regexp"
@@ -60,8 +58,7 @@ func findFiles (patterns []string) {
 // parse CLI args for files to watch and the command to execute
 func parseComands() {
 	if len(os.Args) < 4 {
-		fmt.Println("Usuage\n\t./overseer <file> ... -c command ...")
-		log.Fatal("Incorrect usuage")
+		output.Usuage()
 	}
 
 	commandIndex := -1
@@ -72,8 +69,7 @@ func parseComands() {
 		}
 	}
 	if commandIndex < 0 {
-		fmt.Println("Usuage\n\t./overseer <file> ... -c command ...")
-		log.Fatal("Incorrect usuage")
+		output.Usuage()
 	}
 	commandArgs = os.Args[commandIndex+1:]
 	findFiles(os.Args[1:commandIndex])
@@ -86,7 +82,7 @@ func initFilesModTimes() map[string]time.Time {
 	for _, f := range(watchFiles) {
 		fInfo, err := os.Stat(f)
 		if err != nil {
-			log.Fatal(err.Error())
+			output.FatalError(err)
 		}
 		fileModTimes[f] = fInfo.ModTime()
 	}
@@ -101,7 +97,7 @@ func filesModified (fileModTimes map[string]time.Time) bool {
 	for f := range(fileModTimes) {
 		fInfo, err := os.Stat(f)
 		if err != nil {
-			log.Fatal(err.Error())
+			output.FatalError(err)
 		}
 		if fileModTimes[f] != fInfo.ModTime() {
 			fileModTimes[f] = fInfo.ModTime()

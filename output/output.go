@@ -12,7 +12,6 @@ func PrintError (b bytes.Buffer, err error) {
 	fmt.Print(b.String())
 }
 
-
 func PrintSuccess (b bytes.Buffer) {
 	NoError()
 	fmt.Print(b.String())
@@ -22,6 +21,17 @@ func NoError () {
 	greenColor()
 	log.Printf("No error")
 	endColor()
+}
+
+func Usuage() {
+	fmt.Println("Usuage:\t./overseer <file> ... -c command ...")
+	redBackground()
+	log.Fatal("Incorrect usuage\033[0m")
+}
+
+func FatalError(err error) {
+	redBackground()
+	log.Fatalf("\033[0m%s",err.Error())
 }
 
 func greenColor() {
