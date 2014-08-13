@@ -1,8 +1,7 @@
 package main
 
 import (
-	"./output"
-
+	"github.com/natebrennand/overseer/output"
 	"bytes"
 	"os"
 	"os/exec"
