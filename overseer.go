@@ -1,33 +1,29 @@
 package main
 
 import (
-	"github.com/natebrennand/overseer/output"
 	"bytes"
+	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
-	"time"
+
+	"github.com/howeyc/fsnotify"
+	"github.com/natebrennand/overseer/output"
 )
 
-const (
-	Delay = time.Second
-)
-
-var watchFiles []string
 var filePatterns []regexp.Regexp
-var commandArgs []string
 
 func matchFile(path string, info os.FileInfo, err error) error {
-	if err != nil || path[0] == '.' { //|| info.Name()[0] != '.'{
+	if err != nil || path[0] == '.' {
 		return nil
 	}
 
 	if !info.IsDir() {
 		for _, pattern := range filePatterns {
 			if pattern.MatchString(path) {
-				watchFiles = append(watchFiles, path)
+				// watchFiles = append(watchFiles, path)
 				return nil
 			}
 		}
@@ -35,7 +31,7 @@ func matchFile(path string, info os.FileInfo, err error) error {
 	return nil
 }
 
-func findFiles(patterns []string) {
+func findFiles(patterns []string) []string {
 	filePatterns = []regexp.Regexp{}
 
 	for _, pat := range patterns {
@@ -48,70 +44,34 @@ func findFiles(patterns []string) {
 		}
 		filePatterns = append(filePatterns, *(regexp.MustCompile("^" + pat)))
 	}
-	watchFiles = []string{}
-	filepath.Walk("./", matchFile)
-}
-
-// parse CLI args for files to watch and the command to execute
-func parseComands() {
-	if len(os.Args) < 4 {
-		output.Usuage()
-	}
-
-	commandIndex := -1
-	for i, w := range os.Args {
-		if w == "-c" {
-			commandIndex = i
-			break
+	watchFiles := []string{}
+	filepath.Walk("./", filepath.WalkFunc(func(path string, info os.FileInfo, err error) error {
+		if err != nil || path[0] == '.' {
+			return nil
 		}
-	}
-	if commandIndex < 0 {
-		output.Usuage()
-	}
-	commandArgs = os.Args[commandIndex+1:]
-	findFiles(os.Args[1:commandIndex])
-}
 
-// Initializes the last time every file was modified
-func initFilesModTimes() map[string]time.Time {
-	fileModTimes := make(map[string]time.Time)
-
-	for _, f := range watchFiles {
-		fInfo, err := os.Stat(f)
-		if err != nil {
-			output.FatalError(err)
+		if !info.IsDir() {
+			for _, pattern := range filePatterns {
+				if pattern.MatchString(path) {
+					watchFiles = append(watchFiles, path)
+					return nil
+				}
+			}
 		}
-		fileModTimes[f] = fInfo.ModTime()
-	}
+		return nil
+	}))
 
-	return fileModTimes
-}
-
-// Determines if any files were modified
-// updates their lastModified time
-func filesModified(fileModTimes map[string]time.Time) bool {
-	returnVal := false
-	for f := range fileModTimes {
-		fInfo, err := os.Stat(f)
-		if err != nil {
-			output.FatalError(err)
-		}
-		if fileModTimes[f] != fInfo.ModTime() {
-			fileModTimes[f] = fInfo.ModTime()
-			returnVal = true
-		}
-	}
-	return returnVal
+	return watchFiles
 }
 
 // run whatever command was passed in when started
-func runCommand() {
+func runCommand(command []string) {
 	var commandOutput bytes.Buffer
 	var c *exec.Cmd
-	if len(commandArgs) > 1 {
-		c = exec.Command(commandArgs[0], commandArgs[1:]...)
+	if len(command) > 1 {
+		c = exec.Command(command[0], command[1:]...)
 	} else {
-		c = exec.Command(commandArgs[0])
+		c = exec.Command(command[0])
 	}
 	c.Stdout = &commandOutput
 	c.Stderr = &commandOutput
@@ -126,14 +86,57 @@ func runCommand() {
 	}
 }
 
-func main() {
-	parseComands()
-	fileModTimes := initFilesModTimes()
+// parse CLI args for files to watch and the command to execute
+func parseComands() ([]string, []string) {
+	if len(os.Args) < 4 {
+		output.Usuage()
+	}
 
-	for {
-		time.Sleep(Delay)
-		if filesModified(fileModTimes) {
-			runCommand()
+	commandIndex := -1
+	for i, w := range os.Args {
+		if w == "-c" {
+			commandIndex = i
+			break
 		}
 	}
+	if commandIndex < 0 {
+		output.Usuage()
+	}
+	commandArgs := os.Args[commandIndex+1:]
+	return commandArgs, findFiles(os.Args[1:commandIndex])
+}
+
+func main() {
+	done := make(chan bool)
+	watcher, err := fsnotify.NewWatcher()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// parser CLI args and get files list
+	command, files := parseComands()
+
+	// add all files to watcher
+	for _, f := range files {
+		log.Println("Watching:", f)
+		// if err = watcher.WatchFlags(f, fsnotify.FSN_RENAME|fsnotify.FSN_MODIFY); err != nil {
+		if err = watcher.WatchFlags(f, fsnotify.FSN_ALL); err != nil {
+			log.Fatal(err)
+		}
+	}
+
+	go func() {
+		for {
+			select {
+			case ev := <-watcher.Event:
+				log.Println(ev)
+				runCommand(command)
+			case err := <-watcher.Error:
+				log.Println("error:", err)
+			}
+		}
+	}()
+
+	<-done
+	watcher.Close()
 }
