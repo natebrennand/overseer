@@ -8,31 +8,15 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/howeyc/fsnotify"
 	"github.com/natebrennand/overseer/output"
 )
 
-var filePatterns []regexp.Regexp
-
-func matchFile(path string, info os.FileInfo, err error) error {
-	if err != nil || path[0] == '.' {
-		return nil
-	}
-
-	if !info.IsDir() {
-		for _, pattern := range filePatterns {
-			if pattern.MatchString(path) {
-				// watchFiles = append(watchFiles, path)
-				return nil
-			}
-		}
-	}
-	return nil
-}
-
-func findFiles(patterns []string) []string {
-	filePatterns = []regexp.Regexp{}
+func findFiles(patterns []string) ([]string, regexp.Regexp) {
+	// filePatterns := []regexp.Regexp{}
+	filePatterns := []string{}
 
 	for _, pat := range patterns {
 		if strings.Contains(pat, "**/*") {
@@ -42,26 +26,31 @@ func findFiles(patterns []string) []string {
 			// prevent wildcard from accessing other directories
 			strings.Replace(pat, "*", "[^/]*", 50)
 		}
-		filePatterns = append(filePatterns, *(regexp.MustCompile("^" + pat)))
+		filePatterns = append(filePatterns, "^"+pat)
 	}
-	watchFiles := []string{}
+
+	fileregex := regexp.MustCompile(strings.Join(filePatterns, "|"))
+
+	set := make(map[string]bool)
+	watchDirs := []string{}
+
 	filepath.Walk("./", filepath.WalkFunc(func(path string, info os.FileInfo, err error) error {
 		if err != nil || path[0] == '.' {
 			return nil
 		}
+		dir := filepath.Dir(path)
 
-		if !info.IsDir() {
-			for _, pattern := range filePatterns {
-				if pattern.MatchString(path) {
-					watchFiles = append(watchFiles, path)
-					return nil
-				}
+		if fileregex.MatchString(path) {
+			_, exists := set[dir]
+			if exists == false {
+				set[dir] = true
+				watchDirs = append(watchDirs, dir)
 			}
 		}
 		return nil
 	}))
 
-	return watchFiles
+	return watchDirs, *fileregex
 }
 
 // run whatever command was passed in when started
@@ -87,7 +76,7 @@ func runCommand(command []string) {
 }
 
 // parse CLI args for files to watch and the command to execute
-func parseComands() ([]string, []string) {
+func parseComands() ([]string, []string, regexp.Regexp) {
 	if len(os.Args) < 4 {
 		output.Usuage()
 	}
@@ -103,7 +92,8 @@ func parseComands() ([]string, []string) {
 		output.Usuage()
 	}
 	commandArgs := os.Args[commandIndex+1:]
-	return commandArgs, findFiles(os.Args[1:commandIndex])
+	watchDirs, pattern := findFiles(os.Args[1:commandIndex])
+	return commandArgs, watchDirs, pattern
 }
 
 func main() {
@@ -114,23 +104,32 @@ func main() {
 	}
 
 	// parser CLI args and get files list
-	command, files := parseComands()
+	command, files, pattern := parseComands()
 
 	// add all files to watcher
 	for _, f := range files {
 		log.Println("Watching:", f)
-		// if err = watcher.WatchFlags(f, fsnotify.FSN_RENAME|fsnotify.FSN_MODIFY); err != nil {
-		if err = watcher.WatchFlags(f, fsnotify.FSN_ALL); err != nil {
+		if err = watcher.WatchFlags(f, fsnotify.FSN_MODIFY); err != nil {
 			log.Fatal(err)
 		}
 	}
 
+	var lastModifyTime time.Time = time.Now()
 	go func() {
 		for {
 			select {
 			case ev := <-watcher.Event:
-				log.Println(ev)
-				runCommand(command)
+				if pattern.MatchString(ev.Name) {
+					// check that it's
+					// this is partially because OSX spotlight repeatedly indexes after file
+					// changes
+					// fmt.Println(time.Now().Sub(lastModifyTime))
+					if time.Now().Sub(lastModifyTime) > 2*time.Second {
+						log.Println(ev)
+						go runCommand(command)
+						lastModifyTime = time.Now()
+					}
+				}
 			case err := <-watcher.Error:
 				log.Println("error:", err)
 			}
