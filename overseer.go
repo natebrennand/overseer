@@ -14,23 +14,20 @@ import (
 	"github.com/natebrennand/overseer/output"
 )
 
+// findFiles makes a list of directories to watch and a regex to match filenames with
 func findFiles(patterns []string) ([]string, regexp.Regexp) {
-	// filePatterns := []regexp.Regexp{}
 	filePatterns := []string{}
 
 	for _, pat := range patterns {
-		if strings.Contains(pat, "**/*") {
-			// let **/* access all directories
+		if strings.Contains(pat, "**/*") { // let **/* access all directories
 			strings.Replace(pat, "**/*", "*", 50)
-		} else if strings.Contains(pat, "*") {
-			// prevent wildcard from accessing other directories
+		} else if strings.Contains(pat, "*") { // prevent wildcard from accessing other directories
 			strings.Replace(pat, "*", "[^/]*", 50)
 		}
 		filePatterns = append(filePatterns, "^"+pat)
 	}
 
 	fileregex := regexp.MustCompile(strings.Join(filePatterns, "|"))
-
 	set := make(map[string]bool)
 	watchDirs := []string{}
 
@@ -91,24 +88,24 @@ func parseComands() ([]string, []string, regexp.Regexp) {
 	if commandIndex < 0 {
 		output.Usuage()
 	}
+
 	commandArgs := os.Args[commandIndex+1:]
 	watchDirs, pattern := findFiles(os.Args[1:commandIndex])
 	return commandArgs, watchDirs, pattern
 }
 
 func main() {
-	done := make(chan bool)
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
 		log.Fatal(err)
 	}
+	defer watcher.Close()
 
 	// parser CLI args and get files list
 	command, files, pattern := parseComands()
 
-	// add all files to watcher
+	// add all directories to watcher
 	for _, f := range files {
-		log.Println("Watching:", f)
 		if err = watcher.WatchFlags(f, fsnotify.FSN_MODIFY); err != nil {
 			log.Fatal(err)
 		}
@@ -120,12 +117,8 @@ func main() {
 			select {
 			case ev := <-watcher.Event:
 				if pattern.MatchString(ev.Name) {
-					// check that it's
-					// this is partially because OSX spotlight repeatedly indexes after file
-					// changes
-					// fmt.Println(time.Now().Sub(lastModifyTime))
+					// limit calling the command
 					if time.Now().Sub(lastModifyTime) > 2*time.Second {
-						log.Println(ev)
 						go runCommand(command)
 						lastModifyTime = time.Now()
 					}
@@ -136,6 +129,6 @@ func main() {
 		}
 	}()
 
+	done := make(chan bool)
 	<-done
-	watcher.Close()
 }
