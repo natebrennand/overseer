@@ -1,7 +1,6 @@
 package main
 
 import (
-	"github.com/natebrennand/overseer/output"
 	"bytes"
 	"os"
 	"os/exec"
@@ -9,6 +8,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/natebrennand/overseer/output"
 )
 
 const (
